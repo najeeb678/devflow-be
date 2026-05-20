@@ -32,12 +32,12 @@ export class AuthService {
   }
 
   async generateAndSaveRefreshToken(user: { id: string; email: string }) {
-    const refreshTokenConfig = this.configService.get<{
-      secret: string;
-      expiresIn: string;
-    }>('refreshToken');
+    const secret = this.configService.get<string>('REFRESH_TOKEN_SECRET');
+    const expiresInRaw = this.configService.get<string>(
+      'REFRESH_TOKEN_EXPIRES_IN',
+    );
 
-    if (!refreshTokenConfig?.secret || !refreshTokenConfig?.expiresIn) {
+    if (!secret || !expiresInRaw) {
       throw new BadRequestException('Refresh token configuration is missing');
     }
 
@@ -45,8 +45,6 @@ export class AuthService {
       sub: user.id,
       email: user.email,
     };
-
-    const expiresInRaw = refreshTokenConfig.expiresIn;
 
     const expiresAtMs =
       typeof expiresInRaw === 'string'
@@ -58,7 +56,7 @@ export class AuthService {
     }
 
     const refreshToken = this.jwtService.sign<TokenPayload>(payload, {
-      secret: refreshTokenConfig.secret,
+      secret: secret,
       expiresIn: expiresInRaw as any,
     });
 
@@ -95,17 +93,15 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token expired');
     }
 
-    const refreshTokenConfig = this.configService.get<{ secret: string }>(
-      'refreshToken',
-    );
-    if (!refreshTokenConfig?.secret) {
+    const secret = this.configService.get<string>('REFRESH_TOKEN_SECRET');
+    if (!secret) {
       throw new BadRequestException('Refresh token configuration is missing');
     }
 
     let payload: TokenPayload;
     try {
       payload = this.jwtService.verify<TokenPayload>(refreshToken, {
-        secret: refreshTokenConfig.secret,
+        secret: secret,
       });
     } catch (e: unknown) {
       // invalid token -> clean up and reject
